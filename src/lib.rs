@@ -18,10 +18,12 @@ macro_rules! make_decimal {
         use pyo3::class::basic::CompareOp;
         use pyo3::conversion::AsPyPointer;
         use pyo3::prelude::*;
+        use pyo3::types::{PyAny, PyDict, PyInt, PyList, PyString, PyTuple, PyFloat};
         use pyo3::PyNativeType;
         use pyo3::{exceptions, PyResult};
         use std::fmt::Display;
         use std::ops::{Deref, DerefMut};
+        use std::str::FromStr;
 
         use rust_decimal::prelude::Decimal as RustDecimal;
         use rust_decimal::prelude::ToPrimitive;
@@ -90,7 +92,7 @@ macro_rules! make_decimal {
         static DECIMAL_VERSION_INFO: Lazy<VersionInfo> = Lazy::new(|| make_decimal_version_info());
 
         #[pyfunction]
-        fn get_decimal_version_info<'p>(input: Decimal, py: Python<'p>) -> PyResult<String> {
+        fn get_decimal_version_info<'p>(input: Decimal, _py: Python<'p>) -> PyResult<String> {
             Ok(format!("{:?}", *DECIMAL_VERSION_INFO).to_string())
         }
 
@@ -106,7 +108,7 @@ macro_rules! make_decimal {
                 let unwrapped: &Decimal = &_cell.0.try_borrow().unwrap();
                 if *DECIMAL_VERSION_HASH != unwrapped.1 {
                     return Err(exceptions::PyValueError::new_err(format!(
-                        "VERSION HASH not the same. {:?}",
+                        "Input error. VERSION HASH is not the same. {:?}",
                         *DECIMAL_VERSION_INFO
                     )));
                 }
@@ -122,11 +124,74 @@ macro_rules! make_decimal {
         #[pymethods]
         impl Decimal {
             #[new]
-            pub fn new(num: i128, scale: u32) -> Decimal {
-                Self(
-                    RustDecimal::from_i128_with_scale(num, scale),
-                    *DECIMAL_VERSION_HASH,
-                )
+            #[args(ob = "*")]
+            pub fn new<'p>(ob: &PyTuple, _py: Python<'p>) -> PyResult<Decimal> {
+                if ob.len() == 1 {
+                    let item = ob.get_item(0).unwrap();
+                    let py_string = item.cast_as::<PyString>();
+                    if let Ok(content) = py_string {
+                        //let rust_string = content.to_string();
+                        let rust_str = &content.to_str().unwrap();
+                        let result = RustDecimal::from_str(rust_str);
+                        return match result {
+                            Ok(v) => Ok(Self(v, *DECIMAL_VERSION_HASH)),
+                            Err(_) => Err(exceptions::PyValueError::new_err(format!(
+                                "Input String is wrong value. {}",
+                                rust_str
+                            ))),
+                        };
+                    }
+                    let py_int = item.cast_as::<PyInt>();
+                    if let Ok(content) = py_int {
+                        let num: i128 = content.extract().unwrap();
+                        return Ok(Self(
+                            RustDecimal::from_i128_with_scale(num, 0),
+                            *DECIMAL_VERSION_HASH,
+                        ));
+                    }
+                    let py_float = item.cast_as::<PyFloat>();
+                    if let Ok(content) = py_float {
+                        let num: f64 = content.extract().unwrap();
+                        return Ok(Self(
+                            RustDecimal:: from_f64_retain(num).expect("Failed to load from float value"),
+                            *DECIMAL_VERSION_HASH,
+                        ));
+                    }
+                    Err(exceptions::PyValueError::new_err(format!(
+                        "Input is wrong value. {:?}",
+                        item
+                    )))
+                } else if ob.len() == 2 {
+                    let item0 = ob.get_item(0).unwrap();
+                    let py_num = item0.cast_as::<PyInt>();
+                    let num: i128 = if let Ok(num) = py_num {
+                        num.extract().unwrap()
+                    } else {
+                        return Err(exceptions::PyValueError::new_err(format!(
+                            "First Input is wrong value. {:?}",
+                            item0
+                        )));
+                    };
+                    let item1 = ob.get_item(1).unwrap();
+                    let py_scale = item1.cast_as::<PyInt>();
+                    let scale: u32 = if let Ok(scale) = py_scale {
+                        scale.extract().unwrap()
+                    } else {
+                        return Err(exceptions::PyValueError::new_err(format!(
+                            "First Input is wrong value. {:?}",
+                            item1
+                        )));
+                    };
+                    Ok(Self(
+                        RustDecimal::from_i128_with_scale(num, scale),
+                        *DECIMAL_VERSION_HASH,
+                    ))
+                } else {
+                    Err(exceptions::PyValueError::new_err(format!(
+                        "Input Value is not acceptable {:?}",
+                        ob
+                    )))
+                }
             }
 
             pub const fn scale(&self) -> u32 {
@@ -243,13 +308,21 @@ macro_rules! make_decimal {
                 Ok((self.0 * other.0).into())
             }
 
-            fn __mod__(&self, other: Decimal) -> PyResult<Decimal> {
+            //fn __mod__(&self, other: PyObject) -> PyResult<Decimal> {
+            //    Ok((self.0 % other.0).into())
+            //}
+
+            fn __truediv__(&self, other: Decimal) -> PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
 
-            fn __divmod__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __floordiv__(&self, other: Decimal) -> PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
+
+            //fn __divmod__(&self, other: PyObject) -> PyResult<Decimal> {
+            //    Ok((self.0 / other.0).into())
+            //}
 
             fn __richcmp__(&self, other: Decimal, op: CompareOp) -> PyResult<bool> {
                 match op {
@@ -268,6 +341,14 @@ macro_rules! make_decimal {
 
             fn __repr__(&self) -> PyResult<String> {
                 Ok(format!("Decimal({})", self.to_string()))
+            }
+        }
+        impl Decimal {
+            pub fn from_i128_with_scale<'p>(num: i128, scale: u32) -> Decimal {
+                Self(
+                    RustDecimal::from_i128_with_scale(num, 0),
+                    *DECIMAL_VERSION_HASH,
+                )
             }
         }
 
