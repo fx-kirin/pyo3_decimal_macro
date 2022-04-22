@@ -14,13 +14,14 @@ macro_rules! make_build_info {
 #[macro_export]
 macro_rules! make_decimal {
     () => {
+        use once_cell::sync::Lazy;
+        use pyo3::class::basic::CompareOp;
         use pyo3::conversion::AsPyPointer;
         use pyo3::prelude::*;
         use pyo3::PyNativeType;
         use pyo3::{exceptions, PyResult};
-        use std::ops::{Deref, DerefMut};
-        use once_cell::sync::Lazy;
         use std::fmt::Display;
+        use std::ops::{Deref, DerefMut};
 
         use rust_decimal::prelude::Decimal as RustDecimal;
         use rust_decimal::prelude::ToPrimitive;
@@ -87,7 +88,7 @@ macro_rules! make_decimal {
         }
         static DECIMAL_VERSION_HASH: Lazy<usize> = Lazy::new(|| make_decimal_version_hash());
         static DECIMAL_VERSION_INFO: Lazy<VersionInfo> = Lazy::new(|| make_decimal_version_info());
-        
+
         #[pyfunction]
         fn get_decimal_version_info<'p>(input: Decimal, py: Python<'p>) -> PyResult<String> {
             Ok(format!("{:?}", *DECIMAL_VERSION_INFO).to_string())
@@ -104,7 +105,10 @@ macro_rules! make_decimal {
                 let _cell = unsafe { Wrapper::unchecked_downcast(ob) };
                 let unwrapped: &Decimal = &_cell.0.try_borrow().unwrap();
                 if *DECIMAL_VERSION_HASH != unwrapped.1 {
-                    return Err(exceptions::PyValueError::new_err(format!("VERSION HASH not the same. {:?}", *DECIMAL_VERSION_INFO)));
+                    return Err(exceptions::PyValueError::new_err(format!(
+                        "VERSION HASH not the same. {:?}",
+                        *DECIMAL_VERSION_INFO
+                    )));
                 }
                 Ok(Decimal(unwrapped.0.clone(), *DECIMAL_VERSION_HASH))
             }
@@ -119,7 +123,10 @@ macro_rules! make_decimal {
         impl Decimal {
             #[new]
             pub fn new(num: i128, scale: u32) -> Decimal {
-                Self(RustDecimal::from_i128_with_scale(num, scale), *DECIMAL_VERSION_HASH)
+                Self(
+                    RustDecimal::from_i128_with_scale(num, scale),
+                    *DECIMAL_VERSION_HASH,
+                )
             }
 
             pub const fn scale(&self) -> u32 {
@@ -244,8 +251,15 @@ macro_rules! make_decimal {
                 Ok((self.0 / other.0).into())
             }
 
-            fn __eq__(&self, other: Decimal) -> PyResult<bool> {
-                Ok((self.0 == other.0))
+            fn __richcmp__(&self, other: Decimal, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Lt => Ok(self.0 < other.0),
+                    CompareOp::Le => Ok(self.0 <= other.0),
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    CompareOp::Gt => Ok(self.0 > other.0),
+                    CompareOp::Ge => Ok(self.0 >= other.0),
+                }
             }
 
             fn __str__(&self) -> PyResult<String> {
