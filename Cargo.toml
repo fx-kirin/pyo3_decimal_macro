@@ -1,0 +1,16 @@
+[package]
+name = "pyo3_decimal_macro"
+version = "0.1.0"
+authors = ["fx kirin <fx.kirin@gmail.com>"]
+edition = "2018"
+description = "PyO3 wrapper for rust_decimal."
+license = "MIT"
+
+[lib]
+name = "pyo3_decimal_macro"
+crate-type = ["lib"]
+
+[dependencies]
+
+[build-dependencies]
+built = "0.5.1"
