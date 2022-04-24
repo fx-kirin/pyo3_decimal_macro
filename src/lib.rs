@@ -104,6 +104,22 @@ macro_rules! make_decimal {
 
         impl<'source> FromPyObject<'source> for Decimal {
             fn extract(ob: &'source PyAny) -> PyResult<Self> {
+                if let Ok(_cell) = _cell {
+                    let num: i128 = _cell.extract().unwrap();
+                    return Ok(Decimal(
+                        RustDecimal::from_i128_with_scale(num, 0),
+                        *DECIMAL_VERSION_HASH,
+                    ));
+                }
+                let _cell = ob.cast_as::<PyString>();
+
+                if let Ok(_cell) = _cell {
+                    let num: i128 = _cell.extract().unwrap();
+                    return Ok(Decimal(
+                        RustDecimal::from_i128_with_scale(num, 0),
+                        *DECIMAL_VERSION_HASH,
+                    ));
+                }
                 let _cell = unsafe { Wrapper::unchecked_downcast(ob) };
                 let unwrapped: &Decimal = &_cell.0.try_borrow().unwrap();
                 if *DECIMAL_VERSION_HASH != unwrapped.1 {
