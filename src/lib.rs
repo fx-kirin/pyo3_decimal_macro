@@ -96,86 +96,9 @@ macro_rules! make_decimal {
             Ok(format!("{:?}", *DECIMAL_VERSION_INFO).to_string())
         }
 
-        //#[pyclass(module = "pyo3_decimal", name = "Decimal")]
-        //#[derive(Debug)]
-        //pub struct Decimal(RustDecimal, usize);
+        #[pyclass(module = "pyo3_decimal", name = "Decimal")]
+        #[derive(Debug)]
         pub struct Decimal(RustDecimal, usize);
-        #[automatically_derived]
-        #[allow(unused_qualifications)]
-        impl ::core::fmt::Debug for Decimal {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                match *self {
-                    Decimal(ref __self_0_0, ref __self_0_1) => {
-                        let debug_trait_builder = &mut ::core::fmt::Formatter::debug_tuple(f, "Decimal");
-                        let _ = ::core::fmt::DebugTuple::field(debug_trait_builder, &&(*__self_0_0));
-                        let _ = ::core::fmt::DebugTuple::field(debug_trait_builder, &&(*__self_0_1));
-                        ::core::fmt::DebugTuple::finish(debug_trait_builder)
-                    }
-                }
-            }
-        }
-        const _: () = {
-            use :: pyo3 as _pyo3;
-            unsafe impl _pyo3::type_object::PyTypeInfo for Decimal {
-                type AsRefTarget = _pyo3::PyCell<Self>;
-                const NAME: &'static str = "Decimal";
-                const MODULE: ::std::option::Option<&'static str> =
-                    ::core::option::Option::Some("pyo3_decimal");
-                #[inline]
-                fn type_object_raw(py: _pyo3::Python<'_>) -> *mut _pyo3::ffi::PyTypeObject {
-                    use _pyo3::type_object::LazyStaticType;
-                    static TYPE_OBJECT: LazyStaticType = LazyStaticType::new();
-                    TYPE_OBJECT.get_or_init::<Self>(py)
-                }
-            }
-            impl _pyo3::PyClass for Decimal {
-                type Dict = _pyo3::impl_::pyclass::PyClassDummySlot;
-                type WeakRef = _pyo3::impl_::pyclass::PyClassDummySlot;
-                type BaseNativeType = _pyo3::PyAny;
-            }
-            //impl<'a> _pyo3::derive_utils::ExtractExt<'a> for &'a Decimal {
-            //    type Target = _pyo3::PyRef<'a, Decimal>;
-            //}
-            //impl<'a> _pyo3::derive_utils::ExtractExt<'a> for &'a mut Decimal {
-            //    type Target = _pyo3::PyRefMut<'a, Decimal>;
-            //}
-            impl _pyo3::IntoPy<_pyo3::PyObject> for Decimal {
-                fn into_py(self, py: _pyo3::Python) -> _pyo3::PyObject {
-                    _pyo3::IntoPy::into_py(_pyo3::Py::new(py, self).unwrap(), py)
-                }
-            }
-            impl _pyo3::impl_::pyclass::PyClassImpl for Decimal {
-                const DOC: &'static str = "\u{0}";
-                const IS_BASETYPE: bool = false;
-                const IS_SUBCLASS: bool = false;
-                const IS_MAPPING: bool = false;
-                type Layout = _pyo3::PyCell<Self>;
-                type BaseType = _pyo3::PyAny;
-                type ThreadChecker = _pyo3::impl_::pyclass::ThreadCheckerStub<Decimal>;
-                fn for_all_items(
-                    visitor: &mut dyn ::std::ops::FnMut(&_pyo3::impl_::pyclass::PyClassItems),
-                ) {
-                    use _pyo3::impl_::pyclass::*;
-                    let collector = PyClassImplCollector::<Self>::new();
-                    static INTRINSIC_ITEMS: PyClassItems = PyClassItems {
-                        methods: &[],
-                        slots: &[],
-                    };
-                    visitor(&INTRINSIC_ITEMS);
-                    visitor(collector.py_methods());
-                    visitor(collector.object_protocol_items());
-                    visitor(collector.number_protocol_items());
-                    visitor(collector.iter_protocol_items());
-                    visitor(collector.gc_protocol_items());
-                    visitor(collector.descr_protocol_items());
-                    visitor(collector.mapping_protocol_items());
-                    visitor(collector.sequence_protocol_items());
-                    visitor(collector.async_protocol_items());
-                    visitor(collector.buffer_protocol_items());
-                }
-            }
-        };
-                
         pub struct Wrapper(PyCell<Decimal>);
         unsafe impl PyNativeType for Wrapper {}
 
@@ -199,20 +122,6 @@ macro_rules! make_decimal {
                     )));
                 }
                 Ok(Decimal(unwrapped.0, *DECIMAL_VERSION_HASH))
-            }
-        }
-
-        impl<'source> FromPyObject<'source> for &'source Decimal {
-            fn extract(ob: &'source PyAny) -> PyResult<Self> {
-                let _cell = unsafe { Wrapper::unchecked_downcast(ob) };
-                let unwrapped: &'source Decimal = unsafe { _cell.0.try_borrow_unguarded().unwrap() };
-                if *DECIMAL_VERSION_HASH != unwrapped.1 {
-                    return Err(exceptions::PyValueError::new_err(format!(
-                        "Input error. VERSION HASH is not the same. {:?}",
-                        *DECIMAL_VERSION_INFO
-                    )));
-                }
-                Ok(unwrapped)
             }
         }
 
@@ -458,23 +367,23 @@ macro_rules! make_decimal {
                 self.0.to_f64().unwrap()
             }
 
-            fn __add__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __add__(&self, other: &Decimal) -> PyResult<Decimal> {
                 Ok((self.0 + other.0).into())
             }
 
-            fn __sub__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __sub__(&self, other: &Decimal) -> PyResult<Decimal> {
                 Ok((self.0 - other.0).into())
             }
 
-            fn __mul__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __mul__(&self, other: &Decimal) -> PyResult<Decimal> {
                 Ok((self.0 * other.0).into())
             }
 
-            fn __truediv__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __truediv__(&self, other: &Decimal) -> PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
 
-            fn __floordiv__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __floordiv__(&self, other: &Decimal) -> PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
 
