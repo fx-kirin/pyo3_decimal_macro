@@ -18,7 +18,7 @@ macro_rules! make_decimal {
         use pyo3::class::basic::CompareOp;
         use pyo3::conversion::AsPyPointer;
         use pyo3::prelude::*;
-        use pyo3::types::{PyAny, PyDict, PyInt, PyList, PyString, PyTuple, PyFloat};
+        use pyo3::types::{PyAny, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
         use pyo3::PyNativeType;
         use pyo3::{exceptions, PyResult};
         use std::fmt::Display;
@@ -96,25 +96,95 @@ macro_rules! make_decimal {
             Ok(format!("{:?}", *DECIMAL_VERSION_INFO).to_string())
         }
 
-        #[pyclass(module = "pyo3_decimal", name = "Decimal")]
-        #[derive(Debug)]
+        //#[pyclass(module = "pyo3_decimal", name = "Decimal")]
+        //#[derive(Debug)]
+        //pub struct Decimal(RustDecimal, usize);
         pub struct Decimal(RustDecimal, usize);
+        #[automatically_derived]
+        #[allow(unused_qualifications)]
+        impl ::core::fmt::Debug for Decimal {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                match *self {
+                    Decimal(ref __self_0_0, ref __self_0_1) => {
+                        let debug_trait_builder = &mut ::core::fmt::Formatter::debug_tuple(f, "Decimal");
+                        let _ = ::core::fmt::DebugTuple::field(debug_trait_builder, &&(*__self_0_0));
+                        let _ = ::core::fmt::DebugTuple::field(debug_trait_builder, &&(*__self_0_1));
+                        ::core::fmt::DebugTuple::finish(debug_trait_builder)
+                    }
+                }
+            }
+        }
+        const _: () = {
+            use :: pyo3 as _pyo3;
+            unsafe impl _pyo3::type_object::PyTypeInfo for Decimal {
+                type AsRefTarget = _pyo3::PyCell<Self>;
+                const NAME: &'static str = "Decimal";
+                const MODULE: ::std::option::Option<&'static str> =
+                    ::core::option::Option::Some("pyo3_decimal");
+                #[inline]
+                fn type_object_raw(py: _pyo3::Python<'_>) -> *mut _pyo3::ffi::PyTypeObject {
+                    use _pyo3::type_object::LazyStaticType;
+                    static TYPE_OBJECT: LazyStaticType = LazyStaticType::new();
+                    TYPE_OBJECT.get_or_init::<Self>(py)
+                }
+            }
+            impl _pyo3::PyClass for Decimal {
+                type Dict = _pyo3::impl_::pyclass::PyClassDummySlot;
+                type WeakRef = _pyo3::impl_::pyclass::PyClassDummySlot;
+                type BaseNativeType = _pyo3::PyAny;
+            }
+            //impl<'a> _pyo3::derive_utils::ExtractExt<'a> for &'a Decimal {
+            //    type Target = _pyo3::PyRef<'a, Decimal>;
+            //}
+            //impl<'a> _pyo3::derive_utils::ExtractExt<'a> for &'a mut Decimal {
+            //    type Target = _pyo3::PyRefMut<'a, Decimal>;
+            //}
+            impl _pyo3::IntoPy<_pyo3::PyObject> for Decimal {
+                fn into_py(self, py: _pyo3::Python) -> _pyo3::PyObject {
+                    _pyo3::IntoPy::into_py(_pyo3::Py::new(py, self).unwrap(), py)
+                }
+            }
+            impl _pyo3::impl_::pyclass::PyClassImpl for Decimal {
+                const DOC: &'static str = "\u{0}";
+                const IS_BASETYPE: bool = false;
+                const IS_SUBCLASS: bool = false;
+                const IS_MAPPING: bool = false;
+                type Layout = _pyo3::PyCell<Self>;
+                type BaseType = _pyo3::PyAny;
+                type ThreadChecker = _pyo3::impl_::pyclass::ThreadCheckerStub<Decimal>;
+                fn for_all_items(
+                    visitor: &mut dyn ::std::ops::FnMut(&_pyo3::impl_::pyclass::PyClassItems),
+                ) {
+                    use _pyo3::impl_::pyclass::*;
+                    let collector = PyClassImplCollector::<Self>::new();
+                    static INTRINSIC_ITEMS: PyClassItems = PyClassItems {
+                        methods: &[],
+                        slots: &[],
+                    };
+                    visitor(&INTRINSIC_ITEMS);
+                    visitor(collector.py_methods());
+                    visitor(collector.object_protocol_items());
+                    visitor(collector.number_protocol_items());
+                    visitor(collector.iter_protocol_items());
+                    visitor(collector.gc_protocol_items());
+                    visitor(collector.descr_protocol_items());
+                    visitor(collector.mapping_protocol_items());
+                    visitor(collector.sequence_protocol_items());
+                    visitor(collector.async_protocol_items());
+                    visitor(collector.buffer_protocol_items());
+                }
+            }
+        };
+                
         pub struct Wrapper(PyCell<Decimal>);
         unsafe impl PyNativeType for Wrapper {}
 
         impl<'source> FromPyObject<'source> for Decimal {
             fn extract(ob: &'source PyAny) -> PyResult<Self> {
-                if let Ok(_cell) = _cell {
-                    let num: i128 = _cell.extract().unwrap();
-                    return Ok(Decimal(
-                        RustDecimal::from_i128_with_scale(num, 0),
-                        *DECIMAL_VERSION_HASH,
-                    ));
-                }
-                let _cell = ob.cast_as::<PyString>();
+                let py_int = ob.cast_as::<PyInt>();
 
-                if let Ok(_cell) = _cell {
-                    let num: i128 = _cell.extract().unwrap();
+                if let Ok(content) = py_int {
+                    let num: i128 = content.extract().unwrap();
                     return Ok(Decimal(
                         RustDecimal::from_i128_with_scale(num, 0),
                         *DECIMAL_VERSION_HASH,
@@ -128,9 +198,24 @@ macro_rules! make_decimal {
                         *DECIMAL_VERSION_INFO
                     )));
                 }
-                Ok(Decimal(unwrapped.0.clone(), *DECIMAL_VERSION_HASH))
+                Ok(Decimal(unwrapped.0, *DECIMAL_VERSION_HASH))
             }
         }
+
+        impl<'source> FromPyObject<'source> for &'source Decimal {
+            fn extract(ob: &'source PyAny) -> PyResult<Self> {
+                let _cell = unsafe { Wrapper::unchecked_downcast(ob) };
+                let unwrapped: &'source Decimal = unsafe { _cell.0.try_borrow_unguarded().unwrap() };
+                if *DECIMAL_VERSION_HASH != unwrapped.1 {
+                    return Err(exceptions::PyValueError::new_err(format!(
+                        "Input error. VERSION HASH is not the same. {:?}",
+                        *DECIMAL_VERSION_INFO
+                    )));
+                }
+                Ok(unwrapped)
+            }
+        }
+
         impl fmt::Display for Decimal {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{}", self.0)
@@ -140,74 +225,135 @@ macro_rules! make_decimal {
         #[pymethods]
         impl Decimal {
             #[new]
-            #[args(ob = "*")]
-            pub fn new<'p>(ob: &PyTuple, _py: Python<'p>) -> PyResult<Decimal> {
-                if ob.len() == 1 {
-                    let item = ob.get_item(0).unwrap();
-                    let py_string = item.cast_as::<PyString>();
-                    if let Ok(content) = py_string {
-                        //let rust_string = content.to_string();
-                        let rust_str = &content.to_str().unwrap();
-                        let result = RustDecimal::from_str(rust_str);
-                        return match result {
-                            Ok(v) => Ok(Self(v, *DECIMAL_VERSION_HASH)),
-                            Err(_) => Err(exceptions::PyValueError::new_err(format!(
-                                "Input String is wrong value. {}",
-                                rust_str
-                            ))),
-                        };
-                    }
-                    let py_int = item.cast_as::<PyInt>();
-                    if let Ok(content) = py_int {
-                        let num: i128 = content.extract().unwrap();
-                        return Ok(Self(
-                            RustDecimal::from_i128_with_scale(num, 0),
-                            *DECIMAL_VERSION_HASH,
-                        ));
-                    }
-                    let py_float = item.cast_as::<PyFloat>();
-                    if let Ok(content) = py_float {
-                        let num: f64 = content.extract().unwrap();
-                        return Ok(Self(
-                            RustDecimal:: from_f64_retain(num).expect("Failed to load from float value"),
-                            *DECIMAL_VERSION_HASH,
-                        ));
-                    }
-                    Err(exceptions::PyValueError::new_err(format!(
-                        "Input is wrong value. {:?}",
-                        item
-                    )))
-                } else if ob.len() == 2 {
-                    let item0 = ob.get_item(0).unwrap();
-                    let py_num = item0.cast_as::<PyInt>();
-                    let num: i128 = if let Ok(num) = py_num {
-                        num.extract().unwrap()
-                    } else {
+            #[args(arg1, arg2 = "None")]
+            pub fn new<'p>(
+                arg1: PyObject,
+                arg2: Option<PyObject>,
+                py: Python<'p>,
+            ) -> PyResult<Decimal> {
+                let py_string = arg1.cast_as::<PyString>(py);
+                if let Ok(content) = py_string {
+                    let rust_str: &str = &content.to_str().unwrap();
+                    let result = RustDecimal::from_str(rust_str);
+                    if arg2.is_some() {
                         return Err(exceptions::PyValueError::new_err(format!(
-                            "First Input is wrong value. {:?}",
-                            item0
+                            "arg1 is String but arg2 was supplied value. {:?}",
+                            arg2
                         )));
+                    }
+                    return match result {
+                        Ok(v) => Ok(Self(v, *DECIMAL_VERSION_HASH)),
+                        Err(_) => Err(exceptions::PyValueError::new_err(format!(
+                            "arg1 is wrong value. {}",
+                            rust_str
+                        ))),
                     };
-                    let item1 = ob.get_item(1).unwrap();
-                    let py_scale = item1.cast_as::<PyInt>();
-                    let scale: u32 = if let Ok(scale) = py_scale {
-                        scale.extract().unwrap()
-                    } else {
-                        return Err(exceptions::PyValueError::new_err(format!(
-                            "First Input is wrong value. {:?}",
-                            item1
-                        )));
-                    };
-                    Ok(Self(
-                        RustDecimal::from_i128_with_scale(num, scale),
-                        *DECIMAL_VERSION_HASH,
-                    ))
-                } else {
-                    Err(exceptions::PyValueError::new_err(format!(
-                        "Input Value is not acceptable {:?}",
-                        ob
-                    )))
                 }
+                let py_float = arg1.cast_as::<PyFloat>(py);
+                if let Ok(content) = py_float {
+                    let num: f64 = content.extract().unwrap();
+                    if arg2.is_some() {
+                        return Err(exceptions::PyValueError::new_err(format!(
+                            "arg1 is Float but arg2 was supplied value. {:?}",
+                            arg2
+                        )));
+                    }
+                    return Ok(Self(
+                        RustDecimal::from_f64_retain(num).expect("Failed to load from float value"),
+                        *DECIMAL_VERSION_HASH,
+                    ));
+                }
+                let py_int = arg1.cast_as::<PyInt>(py);
+                let num: i128 = if let Ok(content) = py_int {
+                    content.extract().unwrap()
+                } else {
+                    return Err(exceptions::PyValueError::new_err(format!(
+                        "arg1 is wrong value. {:?}",
+                        arg1
+                    )));
+                };
+                let scale: u32 = if let Some(arg2) = arg2 {
+                    let py_int = arg2.cast_as::<PyInt>(py);
+                    if let Ok(content) = py_int {
+                        content.extract().unwrap()
+                    } else {
+                        return Err(exceptions::PyValueError::new_err(format!(
+                            "arg2 is wrong value. {:?}",
+                            arg2
+                        )));
+                    }
+                } else {
+                    0
+                };
+                Ok(Self(
+                    RustDecimal::from_i128_with_scale(num, scale),
+                    *DECIMAL_VERSION_HASH,
+                ))
+                //if ob.len() == 1 {
+                //    let item = ob.get_item(0).unwrap();
+                //    let py_string = item.cast_as::<PyString>();
+                //    if let Ok(content) = py_string {
+                //        let rust_str: &str = &content.to_str().unwrap();
+                //        let result = RustDecimal::from_str(rust_str);
+                //        return match result {
+                //            Ok(v) => Ok(Self(v, *DECIMAL_VERSION_HASH)),
+                //            Err(_) => Err(exceptions::PyValueError::new_err(format!(
+                //                "Input String is wrong value. {}",
+                //                rust_str
+                //            ))),
+                //        };
+                //    }
+                //    let py_int = item.cast_as::<PyInt>();
+                //    if let Ok(content) = py_int {
+                //        let num: i128 = content.extract().unwrap();
+                //        return Ok(Self(
+                //            RustDecimal::from_i128_with_scale(num, 0),
+                //            *DECIMAL_VERSION_HASH,
+                //        ));
+                //    }
+                //    let py_float = item.cast_as::<PyFloat>();
+                //    if let Ok(content) = py_float {
+                //        let num: f64 = content.extract().unwrap();
+                //        return Ok(Self(
+                //            RustDecimal:: from_f64_retain(num).expect("Failed to load from float value"),
+                //            *DECIMAL_VERSION_HASH,
+                //        ));
+                //    }
+                //    Err(exceptions::PyValueError::new_err(format!(
+                //        "Input is wrong value. {:?}",
+                //        item
+                //    )))
+                //} else if ob.len() == 2 {
+                //    let item0 = ob.get_item(0).unwrap();
+                //    let py_num = item0.cast_as::<PyInt>();
+                //    let num: i128 = if let Ok(num) = py_num {
+                //        num.extract().unwrap()
+                //    } else {
+                //        return Err(exceptions::PyValueError::new_err(format!(
+                //            "First Input is wrong value. {:?}",
+                //            item0
+                //        )));
+                //    };
+                //    let item1 = ob.get_item(1).unwrap();
+                //    let py_scale = item1.cast_as::<PyInt>();
+                //    let scale: u32 = if let Ok(scale) = py_scale {
+                //        scale.extract().unwrap()
+                //    } else {
+                //        return Err(exceptions::PyValueError::new_err(format!(
+                //            "First Input is wrong value. {:?}",
+                //            item1
+                //        )));
+                //    };
+                //    Ok(Self(
+                //        RustDecimal::from_i128_with_scale(num, scale),
+                //        *DECIMAL_VERSION_HASH,
+                //    ))
+                //} else {
+                //    Err(exceptions::PyValueError::new_err(format!(
+                //        "Input Value is not acceptable {:?}",
+                //        ob
+                //    )))
+                //}
             }
 
             pub const fn scale(&self) -> u32 {
@@ -320,13 +466,9 @@ macro_rules! make_decimal {
                 Ok((self.0 - other.0).into())
             }
 
-            fn __mult__(&self, other: Decimal) -> PyResult<Decimal> {
+            fn __mul__(&self, other: Decimal) -> PyResult<Decimal> {
                 Ok((self.0 * other.0).into())
             }
-
-            //fn __mod__(&self, other: PyObject) -> PyResult<Decimal> {
-            //    Ok((self.0 % other.0).into())
-            //}
 
             fn __truediv__(&self, other: Decimal) -> PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
@@ -336,9 +478,9 @@ macro_rules! make_decimal {
                 Ok((self.0 / other.0).into())
             }
 
-            //fn __divmod__(&self, other: PyObject) -> PyResult<Decimal> {
-            //    Ok((self.0 / other.0).into())
-            //}
+            fn __neg__(&self) -> PyResult<Decimal> {
+                Ok((-self.0).into())
+            }
 
             fn __richcmp__(&self, other: Decimal, op: CompareOp) -> PyResult<bool> {
                 match op {
