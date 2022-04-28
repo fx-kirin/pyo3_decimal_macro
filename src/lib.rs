@@ -117,10 +117,14 @@ macro_rules! make_decimal {
                 let _cell = unsafe { Wrapper::unchecked_downcast(ob) };
                 let unwrapped: &Decimal = &_cell.0.try_borrow().unwrap();
                 if *DECIMAL_VERSION_HASH != unwrapped.1 {
-                    
-                    return Err(pyo3::PyDowncastError::new(ob, format!(
-                        "Decimal. Input error. VERSION HASH is not the same. {:?}",
-                        *DECIMAL_VERSION_INFO)).into());
+                    return Err(pyo3::PyDowncastError::new(
+                        ob,
+                        format!(
+                            "Decimal. Input error. VERSION HASH is not the same. {:?}",
+                            *DECIMAL_VERSION_INFO
+                        ),
+                    )
+                    .into());
                 }
                 Ok(Decimal(unwrapped.0, *DECIMAL_VERSION_HASH))
             }
