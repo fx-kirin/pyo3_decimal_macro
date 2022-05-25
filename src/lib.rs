@@ -349,6 +349,79 @@ macro_rules! make_decimal {
             fn __repr__(&self) -> PyResult<String> {
                 Ok(format!("Decimal({})", self.to_string()))
             }
+
+            fn __int__(&self) -> i64 {
+                self.to_int()
+            }
+
+            fn __float__(&self) -> f64 {
+                self.to_float()
+            }
+
+            fn __format__(&self, format_spec: &str) -> PyResult<String> {
+                let text_length = format_spec.len();
+                if text_length == 0 {
+                    return Ok(self.to_string());
+                }
+                let format_base = &format_spec[text_length-1..text_length];
+                if format_base == "i" {
+                    if text_length == 1 {
+                        return Ok(self.to_int().to_string());
+                    }
+                    let format_prefix = &format_spec[0..(text_length-1)];
+                    let result = num_runtime_fmt::NumFmt::from_str(&*format_prefix);
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    let result = result.fmt(self.to_int());
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    return Ok(result);
+                } else if format_base == "f" {
+                    if text_length == 1 {
+                        return Ok(self.to_float().to_string());
+                    }
+                    let format_prefix = &format_spec[0..(text_length-1)];
+                    let result = num_runtime_fmt::NumFmt::from_str(&*format_prefix);
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    let result = result.fmt(self.to_float());
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    return Ok(result);
+                } else {
+                    let result = num_runtime_fmt::NumFmt::from_str(&*format_spec);
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    let result = result.fmt(self.to_float());
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                        }
+                    };
+                    return Ok(result);
+                }
+            }
         }
         impl Decimal {
             pub fn from_i128_with_scale<'p>(num: i128, scale: u32) -> Decimal {
