@@ -14,23 +14,10 @@ macro_rules! make_build_info {
 #[macro_export]
 macro_rules! make_decimal {
     () => {
-        use once_cell::sync::Lazy;
-        use pyo3::class::basic::CompareOp;
-        use pyo3::conversion::AsPyPointer;
-        use pyo3::prelude::*;
-        use pyo3::types::{PyAny, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-        use pyo3::PyNativeType;
-        use pyo3::{exceptions, PyResult};
-        use std::fmt::Display;
-        use std::ops::{Deref, DerefMut};
-        use std::str::FromStr;
-
-        use rust_decimal::prelude::Decimal as RustDecimal;
+        use pyo3::PyNativeType; // これは trait なので消せない
+        use rust_decimal::prelude::FromStr;
         use rust_decimal::prelude::ToPrimitive;
-        use std::fmt;
-        use std::ptr;
 
-        use fxhash::hash;
         use std::hash::Hash;
         #[derive(Hash, Debug, Clone)]
         struct VersionInfo {
@@ -86,31 +73,33 @@ macro_rules! make_decimal {
         }
         fn make_decimal_version_hash() -> usize {
             let ver_info = make_decimal_version_info();
-            hash(&ver_info)
+            fxhash::hash(&ver_info)
         }
-        static DECIMAL_VERSION_HASH: Lazy<usize> = Lazy::new(|| make_decimal_version_hash());
-        static DECIMAL_VERSION_INFO: Lazy<VersionInfo> = Lazy::new(|| make_decimal_version_info());
+        static DECIMAL_VERSION_HASH: once_cell::sync::Lazy<usize> =
+            once_cell::sync::Lazy::new(|| make_decimal_version_hash());
+        static DECIMAL_VERSION_INFO: once_cell::sync::Lazy<VersionInfo> =
+            once_cell::sync::Lazy::new(|| make_decimal_version_info());
 
         #[pyfunction]
-        fn get_decimal_version_info<'p>(input: Decimal, _py: Python<'p>) -> PyResult<String> {
+        fn get_decimal_version_info<'p>(input: Decimal, _py: Python<'p>) -> pyo3::PyResult<String> {
             Ok(format!("{:?}", *DECIMAL_VERSION_INFO).to_string())
         }
 
         #[pyclass(module = "pyo3_decimal", name = "Decimal")]
         #[derive(Debug)]
         #[repr(C)]
-        pub struct Decimal(RustDecimal, usize);
+        pub struct Decimal(rust_decimal::prelude::Decimal, usize);
         pub struct Wrapper(PyCell<Decimal>);
-        unsafe impl PyNativeType for Wrapper {}
+        unsafe impl pyo3::PyNativeType for Wrapper {}
 
         impl<'source> FromPyObject<'source> for Decimal {
-            fn extract(ob: &'source PyAny) -> PyResult<Self> {
-                let py_int = ob.cast_as::<PyInt>();
+            fn extract(ob: &'source pyo3::types::PyAny) -> pyo3::PyResult<Self> {
+                let py_int = ob.cast_as::<pyo3::types::PyInt>();
 
                 if let Ok(content) = py_int {
                     let num: i128 = content.extract().unwrap();
                     return Ok(Decimal(
-                        RustDecimal::from_i128_with_scale(num, 0),
+                        rust_decimal::prelude::Decimal::from_i128_with_scale(num, 0),
                         *DECIMAL_VERSION_HASH,
                     ));
                 }
@@ -130,8 +119,8 @@ macro_rules! make_decimal {
             }
         }
 
-        impl fmt::Display for Decimal {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl std::fmt::Display for Decimal {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", self.0)
             }
         }
@@ -144,54 +133,55 @@ macro_rules! make_decimal {
                 arg1: PyObject,
                 arg2: Option<PyObject>,
                 py: Python<'p>,
-            ) -> PyResult<Decimal> {
-                let py_string = arg1.cast_as::<PyString>(py);
+            ) -> pyo3::PyResult<Decimal> {
+                let py_string = arg1.cast_as::<pyo3::types::PyString>(py);
                 if let Ok(content) = py_string {
                     let rust_str: &str = &content.to_str().unwrap();
-                    let result = RustDecimal::from_str(rust_str);
+                    let result = rust_decimal::Decimal::from_str(rust_str);
                     if arg2.is_some() {
-                        return Err(exceptions::PyValueError::new_err(format!(
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
                             "arg1 is String but arg2 was supplied value. {:?}",
                             arg2
                         )));
                     }
                     return match result {
                         Ok(v) => Ok(Self(v, *DECIMAL_VERSION_HASH)),
-                        Err(_) => Err(exceptions::PyValueError::new_err(format!(
+                        Err(_) => Err(pyo3::exceptions::PyValueError::new_err(format!(
                             "arg1 is wrong value. {}",
                             rust_str
                         ))),
                     };
                 }
-                let py_float = arg1.cast_as::<PyFloat>(py);
+                let py_float = arg1.cast_as::<pyo3::types::PyFloat>(py);
                 if let Ok(content) = py_float {
                     let num: f64 = content.extract().unwrap();
                     if arg2.is_some() {
-                        return Err(exceptions::PyValueError::new_err(format!(
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
                             "arg1 is Float but arg2 was supplied value. {:?}",
                             arg2
                         )));
                     }
                     return Ok(Self(
-                        RustDecimal::from_f64_retain(num).expect("Failed to load from float value"),
+                        rust_decimal::prelude::Decimal::from_f64_retain(num)
+                            .expect("Failed to load from float value"),
                         *DECIMAL_VERSION_HASH,
                     ));
                 }
-                let py_int = arg1.cast_as::<PyInt>(py);
+                let py_int = arg1.cast_as::<pyo3::types::PyInt>(py);
                 let num: i128 = if let Ok(content) = py_int {
                     content.extract().unwrap()
                 } else {
-                    return Err(exceptions::PyValueError::new_err(format!(
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
                         "arg1 is wrong value. {:?}",
                         arg1
                     )));
                 };
                 let scale: u32 = if let Some(arg2) = arg2 {
-                    let py_int = arg2.cast_as::<PyInt>(py);
+                    let py_int = arg2.cast_as::<pyo3::types::PyInt>(py);
                     if let Ok(content) = py_int {
                         content.extract().unwrap()
                     } else {
-                        return Err(exceptions::PyValueError::new_err(format!(
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
                             "arg2 is wrong value. {:?}",
                             arg2
                         )));
@@ -200,7 +190,7 @@ macro_rules! make_decimal {
                     0
                 };
                 Ok(Self(
-                    RustDecimal::from_i128_with_scale(num, scale),
+                    rust_decimal::prelude::Decimal::from_i128_with_scale(num, scale),
                     *DECIMAL_VERSION_HASH,
                 ))
             }
@@ -226,11 +216,11 @@ macro_rules! make_decimal {
                 self.0.set_sign_negative(negative)
             }
 
-            pub fn set_scale(&mut self, scale: u32) -> PyResult<()> {
+            pub fn set_scale(&mut self, scale: u32) -> pyo3::PyResult<()> {
                 let result = self.0.set_scale(scale);
                 match result {
                     Ok(v) => Ok(v),
-                    Err(_) => Err(exceptions::PyRuntimeError::new_err("set_scale Error")),
+                    Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err("set_scale Error")),
                 }
             }
 
@@ -307,46 +297,50 @@ macro_rules! make_decimal {
                 self.0.to_f64().unwrap()
             }
 
-            fn __add__(&self, other: &Decimal) -> PyResult<Decimal> {
+            fn __add__(&self, other: &Decimal) -> pyo3::PyResult<Decimal> {
                 Ok((self.0 + other.0).into())
             }
 
-            fn __sub__(&self, other: &Decimal) -> PyResult<Decimal> {
+            fn __sub__(&self, other: &Decimal) -> pyo3::PyResult<Decimal> {
                 Ok((self.0 - other.0).into())
             }
 
-            fn __mul__(&self, other: &Decimal) -> PyResult<Decimal> {
+            fn __mul__(&self, other: &Decimal) -> pyo3::PyResult<Decimal> {
                 Ok((self.0 * other.0).into())
             }
 
-            fn __truediv__(&self, other: &Decimal) -> PyResult<Decimal> {
+            fn __truediv__(&self, other: &Decimal) -> pyo3::PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
 
-            fn __floordiv__(&self, other: &Decimal) -> PyResult<Decimal> {
+            fn __floordiv__(&self, other: &Decimal) -> pyo3::PyResult<Decimal> {
                 Ok((self.0 / other.0).into())
             }
 
-            fn __neg__(&self) -> PyResult<Decimal> {
+            fn __neg__(&self) -> pyo3::PyResult<Decimal> {
                 Ok((-self.0).into())
             }
 
-            fn __richcmp__(&self, other: Decimal, op: CompareOp) -> PyResult<bool> {
+            fn __richcmp__(
+                &self,
+                other: Decimal,
+                op: pyo3::class::basic::CompareOp,
+            ) -> pyo3::PyResult<bool> {
                 match op {
-                    CompareOp::Lt => Ok(self.0 < other.0),
-                    CompareOp::Le => Ok(self.0 <= other.0),
-                    CompareOp::Eq => Ok(self.0 == other.0),
-                    CompareOp::Ne => Ok(self.0 != other.0),
-                    CompareOp::Gt => Ok(self.0 > other.0),
-                    CompareOp::Ge => Ok(self.0 >= other.0),
+                    pyo3::class::basic::CompareOp::Lt => Ok(self.0 < other.0),
+                    pyo3::class::basic::CompareOp::Le => Ok(self.0 <= other.0),
+                    pyo3::class::basic::CompareOp::Eq => Ok(self.0 == other.0),
+                    pyo3::class::basic::CompareOp::Ne => Ok(self.0 != other.0),
+                    pyo3::class::basic::CompareOp::Gt => Ok(self.0 > other.0),
+                    pyo3::class::basic::CompareOp::Ge => Ok(self.0 >= other.0),
                 }
             }
 
-            fn __str__(&self) -> PyResult<String> {
+            fn __str__(&self) -> pyo3::PyResult<String> {
                 Ok(self.to_string())
             }
 
-            fn __repr__(&self) -> PyResult<String> {
+            fn __repr__(&self) -> pyo3::PyResult<String> {
                 Ok(format!("Decimal({})", self.to_string()))
             }
 
@@ -358,29 +352,35 @@ macro_rules! make_decimal {
                 self.to_float()
             }
 
-            fn __format__(&self, format_spec: &str) -> PyResult<String> {
+            fn __format__(&self, format_spec: &str) -> pyo3::PyResult<String> {
                 let text_length = format_spec.len();
                 if text_length == 0 {
                     return Ok(self.to_string());
                 }
-                let format_base = &format_spec[text_length-1..text_length];
+                let format_base = &format_spec[text_length - 1..text_length];
                 if format_base == "i" {
                     if text_length == 1 {
                         return Ok(self.to_int().to_string());
                     }
-                    let format_prefix = &format_spec[0..(text_length-1)];
+                    let format_prefix = &format_spec[0..(text_length - 1)];
                     let result = num_runtime_fmt::NumFmt::from_str(&*format_prefix);
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     let result = result.fmt(self.to_int());
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     return Ok(result);
@@ -388,19 +388,25 @@ macro_rules! make_decimal {
                     if text_length == 1 {
                         return Ok(self.to_float().to_string());
                     }
-                    let format_prefix = &format_spec[0..(text_length-1)];
+                    let format_prefix = &format_spec[0..(text_length - 1)];
                     let result = num_runtime_fmt::NumFmt::from_str(&*format_prefix);
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     let result = result.fmt(self.to_float());
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     return Ok(result);
@@ -409,14 +415,20 @@ macro_rules! make_decimal {
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     let result = result.fmt(self.to_float());
                     let result = match result {
                         Ok(r) => r,
                         Err(e) => {
-                            return Err(exceptions::PyRuntimeError::new_err(format!("format string error {}", e.to_string())));
+                            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                                "format string error {}",
+                                e.to_string()
+                            )));
                         }
                     };
                     return Ok(result);
@@ -426,35 +438,36 @@ macro_rules! make_decimal {
         impl Decimal {
             pub fn from_i128_with_scale<'p>(num: i128, scale: u32) -> Decimal {
                 Self(
-                    RustDecimal::from_i128_with_scale(num, 0),
+                    rust_decimal::prelude::Decimal::from_i128_with_scale(num, 0),
                     *DECIMAL_VERSION_HASH,
                 )
             }
         }
 
-        impl Deref for Decimal {
-            type Target = RustDecimal;
+        impl std::ops::Deref for Decimal {
+            type Target = rust_decimal::prelude::Decimal;
             fn deref(&self) -> &Self::Target {
                 &self.0
             }
         }
 
-        impl DerefMut for Decimal {
+        impl std::ops::DerefMut for Decimal {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 &mut self.0
             }
         }
 
-        impl Into<RustDecimal> for Decimal {
-            fn into(self) -> RustDecimal {
+        impl Into<rust_decimal::prelude::Decimal> for Decimal {
+            fn into(self) -> rust_decimal::prelude::Decimal {
                 self.0
             }
         }
 
-        impl Into<Decimal> for RustDecimal {
+        impl Into<Decimal> for rust_decimal::prelude::Decimal {
             fn into(self) -> Decimal {
                 Decimal(self, *DECIMAL_VERSION_HASH)
             }
         }
     };
 }
+
